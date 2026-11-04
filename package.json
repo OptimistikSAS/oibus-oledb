@@ -1,6 +1,6 @@
 {
   "name": "@oibus/oledb",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Windows-only OLE DB driver for OIBus. Spawns and multiplexes connections over a bundled .NET helper (System.Data.OleDb, MIT) via a stdio JSON protocol. OLE DB providers are not included: they are installed on the machine.",
   "license": "EUPL-1.2",
   "author": "Optimistik SAS",
