@@ -1,0 +1,49 @@
+{
+  "name": "@oibus/oledb",
+  "version": "0.1.0",
+  "description": "Windows-only OLE DB driver for OIBus. Spawns and multiplexes connections over a bundled .NET helper (System.Data.OleDb, MIT) via a stdio JSON protocol. OLE DB providers are not included: they are installed on the machine.",
+  "license": "EUPL-1.2",
+  "author": "Optimistik SAS",
+  "homepage": "https://github.com/OptimistikSAS/oibus-oledb#readme",
+  "bugs": "https://github.com/OptimistikSAS/oibus-oledb/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OptimistikSAS/oibus-oledb.git"
+  },
+  "keywords": [
+    "oibus",
+    "oledb",
+    "ole-db",
+    "sql",
+    "database",
+    "windows"
+  ],
+  "os": [
+    "win32"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "runtimes",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": "26.12.1",
+    "npm": "11.20.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:win-x64": "dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:DebugType=None -o runtimes/win-x64",
+    "build:runtimes": "npm run build:win-x64",
+    "test": "node --import tsx --test src/**/*.spec.ts"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3"
+  }
+}

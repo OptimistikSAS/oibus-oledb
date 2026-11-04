@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Windows-only helper spawned as a local child process by @oibus/oledb's TypeScript driver
+    (see src/index.ts) and talked to over a newline-delimited JSON protocol on stdin/stdout. Opens
+    OLE DB connections and runs SQL queries through System.Data.OleDb (MIT, part of .NET).
+
+    No OLE DB provider is bundled: providers (Microsoft OLE DB Driver for SQL Server, Oracle
+    Provider for OLE DB, a historian's own provider...) are installed on the target machine by the
+    user and loaded by Windows at runtime, from the Provider keyword of the connection string.
+
+    Published as a self-contained single-file executable for win-x64 only:
+      dotnet publish -c Release -r win-x64 -p:SelfContained=true -p:PublishSingleFile=true
+    The resulting binary is what gets bundled into runtimes/win-x64/ and shipped in the npm package —
+    see the "Release" section in README.md. Being a 64-bit process, it can only load 64-bit OLE DB
+    providers. There is no win-x86 build (Node.js has no 32-bit Windows release since v23) and no
+    win-arm64 build (Windows on ARM is not supported).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Lets `dotnet publish -r win-x64` cross-build from Linux/macOS too (the helper still only runs on Windows). -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>OIBusOleDbWindows</AssemblyName>
+    <RootNamespace>OIBusOleDbWindows</RootNamespace>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <Product>OIBus OLE DB Windows Helper</Product>
+    <Company>Optimistik SAS</Company>
+    <Copyright>Copyright (c) 2026 Optimistik SAS</Copyright>
+    <Description>Includes System.Data.OleDb and the .NET runtime (MIT) — see THIRD-PARTY-NOTICES.md. No OLE DB provider is included.</Description>
+    <!--
+      Compress the assemblies embedded in the single-file executable, at the cost of decompressing
+      them in memory each time the helper starts (once per OIBus process). Only supported for
+      self-contained single-file publishes.
+    -->
+    <EnableCompressionInSingleFile Condition="'$(PublishSingleFile)' == 'true'">true</EnableCompressionInSingleFile>
+    <!-- System.Data.OleDb relies on built-in COM interop, which trimming disables. -->
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Data.OleDb" Version="10.0.14" />
+  </ItemGroup>
+
+  <!--
+    A self-contained publish embeds the .NET runtime (System.Data.OleDb and its dependencies come
+    from the same dotnet/runtime repository and notices), so ship its own LICENSE and third-party
+    notices, taken from the exact runtime pack that was embedded, next to every published executable.
+  -->
+  <Target Name="CopyThirdPartyLicensesToPublishDir" AfterTargets="Publish">
+    <ItemGroup>
+      <_EmbeddedRuntimePack Include="@(ResolvedRuntimePack)" Condition="'%(ResolvedRuntimePack.FrameworkName)' == 'Microsoft.NETCore.App'" />
+      <_RuntimePackNotice Include="@(_EmbeddedRuntimePack->'%(PackageDirectory)/LICENSE.TXT')" TargetName="dotnet-runtime-LICENSE.txt" />
+      <_RuntimePackNotice Include="@(_EmbeddedRuntimePack->'%(PackageDirectory)/THIRD-PARTY-NOTICES.TXT')" TargetName="dotnet-runtime-THIRD-PARTY-NOTICES.txt" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_RuntimePackNotice)" DestinationFiles="@(_RuntimePackNotice->'$(PublishDir)%(TargetName)')" Condition="Exists('%(Identity)')" />
+  </Target>
+
+</Project>
