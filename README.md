@@ -108,14 +108,21 @@ runtime reports crashes).
 Inside a [`@yao-pkg/pkg`](https://github.com/yao-pkg/pkg) bundle, paths resolved relative to
 `__dirname` point into pkg's virtual snapshot filesystem: `fs` reads them, but
 `child_process.spawn()` needs a real file. So when `process.pkg` is set, `resolveOleDbBinaryPath()`
-extracts the embedded helper to `<tmpdir>/oibus-oledb/<content hash>/OIBusOleDbWindows.exe` and
-spawns it from there.
+extracts the embedded helper to `<extract dir>/oibus-oledb/<content hash>/OIBusOleDbWindows.exe` and
+spawns it from there. The extract dir is the folder named by the `OIBUS_OLEDB_EXTRACT_DIR` environment
+variable, or else the temporary folder of the operating system.
 
 The folder is named after the helper's content: several applications on the same machine (two
 OIBus services, for instance) share one extracted copy per helper version, an already extracted copy
-is reused as is (Windows forbids replacing an executable while it runs), and a new version goes to
-its own folder. A copy is written under a per-process temporary name and renamed into place
-(atomic on the same volume), so that no process ever spawns a partially written file.
+is reused (Windows forbids replacing an executable while it runs), and a new version goes to its own
+folder. A copy is written under a per-process temporary name and renamed into place (atomic on the
+same volume), so that no process ever spawns a partially written file.
+
+An extracted copy is only spawned once its SHA-256 matches the embedded helper. A copy altered in the
+extract dir, which may be writable by other users (the temporary folder is), is replaced; when it
+cannot be replaced because another process runs it, the connection fails instead of running it. Point
+`OIBUS_OLEDB_EXTRACT_DIR` to a folder only the service account can write to (for OIBus, a folder of its
+data folder, for instance) to keep other users from planting a file there at all.
 
 The consuming application still needs to tell `pkg` to embed the helper. Add the `runtimes/win-x64`
 folder to its `pkg.assets`:
