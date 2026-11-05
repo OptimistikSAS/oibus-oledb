@@ -51,6 +51,29 @@ const setPkg = (enabled: boolean) => {
 describe('resolveOleDbBinaryPath', () => {
   afterEach(() => {
     delete process.env.OIBUS_OLEDB_WINDOWS_BINARY;
+    delete process.env.OIBUS_OLEDB_EXTRACT_DIR;
+    setPkg(false);
+    mock.restoreAll();
+  });
+
+  it('extracts the helper into OIBUS_OLEDB_EXTRACT_DIR when running under pkg', () => {
+    const extractDir = fs.mkdtempSync(path.join(os.tmpdir(), 'oibus-oledb-extract-dir-test-'));
+    const originalArch = process.arch;
+    const readFileSync = fs.readFileSync;
+    const bundledPath = path.join(__dirname, '..', 'runtimes', 'win-x64', 'OIBusOleDbWindows.exe');
+    mock.method(fs, 'readFileSync', ((file: fs.PathOrFileDescriptor, options?: unknown) =>
+      file === bundledPath ? Buffer.from('bundled helper') : readFileSync(file, options as BufferEncoding)) as typeof fs.readFileSync);
+    Object.defineProperty(process, 'arch', { value: 'x64' });
+    process.env.OIBUS_OLEDB_EXTRACT_DIR = extractDir;
+    setPkg(true);
+    try {
+      const resolved = resolveOleDbBinaryPath();
+      assert.strictEqual(path.dirname(path.dirname(resolved)), path.join(extractDir, 'oibus-oledb'));
+      assert.strictEqual(readFileSync(resolved, 'utf8'), 'bundled helper');
+    } finally {
+      Object.defineProperty(process, 'arch', { value: originalArch });
+      fs.rmSync(extractDir, { recursive: true, force: true });
+    }
   });
 
   it('returns the OIBUS_OLEDB_WINDOWS_BINARY override when set', () => {
@@ -140,6 +163,34 @@ describe('extractFromPkgSnapshotIfNeeded', () => {
     const resolved = extractFromPkgSnapshotIfNeeded(bundledPath, tmpDir);
     assert.strictEqual(fs.readFileSync(resolved, 'utf8'), 'fake binary contents');
     assert.deepStrictEqual(fs.readdirSync(path.dirname(resolved)), ['OIBusOleDbWindows.exe'], 'temporary file removed');
+  });
+
+  it('replaces an extracted copy that was altered, even with the same size', () => {
+    setPkg(true);
+    const first = extractFromPkgSnapshotIfNeeded(bundledPath, tmpDir);
+    fs.writeFileSync(first, 'FAKE BINARY CONTENTS');
+    assert.strictEqual(extractFromPkgSnapshotIfNeeded(bundledPath, tmpDir), first);
+    assert.strictEqual(fs.readFileSync(first, 'utf8'), 'fake binary contents');
+  });
+
+  it('refuses an altered copy that cannot be replaced (run by another process)', () => {
+    setPkg(true);
+    const first = extractFromPkgSnapshotIfNeeded(bundledPath, tmpDir);
+    fs.writeFileSync(first, 'FAKE BINARY CONTENTS');
+    mock.method(fs, 'renameSync', () => {
+      throw new Error('EBUSY: resource busy or locked, rename');
+    });
+    assert.throws(() => extractFromPkgSnapshotIfNeeded(bundledPath, tmpDir), /SHA-256 mismatch/);
+    assert.deepStrictEqual(fs.readdirSync(path.dirname(first)), ['OIBusOleDbWindows.exe'], 'temporary file removed');
+  });
+
+  it('refuses the copy of another process that does not match the bundled binary', () => {
+    setPkg(true);
+    mock.method(fs, 'renameSync', (_from: fs.PathLike, to: fs.PathLike) => {
+      fs.writeFileSync(to, 'tampered contents');
+      throw new Error('EPERM: operation not permitted, rename');
+    });
+    assert.throws(() => extractFromPkgSnapshotIfNeeded(bundledPath, tmpDir), /SHA-256 mismatch/);
   });
 
   it('throws when the copy cannot be renamed into place', () => {
