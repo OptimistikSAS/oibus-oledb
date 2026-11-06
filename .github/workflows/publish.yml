@@ -50,5 +50,13 @@ jobs:
         env:
           OIBUS_OLEDB_INTEGRATION_CONNECTION_STRING: 'Provider=MSOLEDBSQL;Data Source=(localdb)\MSSQLLocalDB;Integrated Security=SSPI'
 
+      # Pre-release tags (v1.5.0-beta.0, v2.0.0-rc.1…) go to the "next" dist-tag so they never
+      # become "latest"; users opt in with `npm install @oibus/oledb@next`.
       - name: Publish to npm
-        run: npm publish --provenance
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            npm publish --provenance --tag next
+          else
+            npm publish --provenance
+          fi
